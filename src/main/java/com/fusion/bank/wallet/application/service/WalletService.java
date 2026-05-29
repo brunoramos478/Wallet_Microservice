@@ -9,7 +9,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -21,7 +20,14 @@ public class WalletService {
 
 
     public void createWalletForUser(WalletEntity wallet) {
+
+        if(repository.findByUserId(wallet.getUserId()).isPresent()) {
+            throw new RuntimeException("Wallet already exists");
+        }
+
+        wallet.setBalance(BigDecimal.ZERO);
         repository.save(wallet);
+
     }
 
     public BigDecimal getBalanceUser(UUID userId) {
