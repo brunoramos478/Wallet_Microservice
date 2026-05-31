@@ -1,12 +1,16 @@
 package com.fusion.bank.wallet.application.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fusion.bank.wallet.adapter.in.web.dto.WalletDtoModel;
 import com.fusion.bank.wallet.model.mysql.entity.TransactionEntity;
 import com.fusion.bank.wallet.model.mysql.entity.WalletEntity;
 import com.fusion.bank.wallet.model.mysql.repository.TransactionRepository;
 import com.fusion.bank.wallet.model.mysql.repository.WalletRepository;
 import lombok.AllArgsConstructor;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.crypto.encrypt.TextEncryptor;
 import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -17,6 +21,10 @@ public class WalletService {
 
     private final WalletRepository repository;
     private final TransactionRepository transactionRepository;
+    private final RabbitTemplate rabbitTemplate;
+    private final TextEncryptor textEncryptor;
+    private final ObjectMapper objectMapper;
+
 
 
     public void createWalletForUser(WalletEntity wallet) {
@@ -45,6 +53,22 @@ public class WalletService {
 
 
         return transactionRepository.findAllByWalletId(wallet.getUserId(), pageable);
+    }
+
+    public void encryptJson(Object payload) {
+
+        try {
+            String json = objectMapper.writeValueAsString(payload);
+            String jsonEncrypted = textEncryptor.encrypt(json);
+        }
+        catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void sendMessageQueue(String exchange, String routingKey, Object delivery) {
+        encryptJson(delivery);
+        rabbitTemplate.convertAndSend(exchange, routingKey, delivery);
     }
 
 }
