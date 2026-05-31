@@ -55,11 +55,12 @@ public class WalletService {
         return transactionRepository.findAllByWalletId(wallet.getUserId(), pageable);
     }
 
-    public void encryptJson(Object payload) {
+    public String encryptJson(Object payload) {
 
         try {
             String json = objectMapper.writeValueAsString(payload);
             String jsonEncrypted = textEncryptor.encrypt(json);
+            return jsonEncrypted;
         }
         catch (Exception e) {
             throw new RuntimeException(e);
