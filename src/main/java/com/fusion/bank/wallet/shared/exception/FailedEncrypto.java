@@ -8,8 +8,4 @@ public class FailedEncrypto extends RuntimeException {
     public FailedEncrypto(String message) {
         super(message);
     }
-
-    public FailedEncrypto(String message, Throwable cause) {
-        super(message, cause);
-    }
 }

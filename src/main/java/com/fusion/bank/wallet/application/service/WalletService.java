@@ -55,7 +55,7 @@ public class WalletService {
         Pageable pageable = Pageable.ofSize(size).withPage(page);
 
 
-        return transactionRepository.findAllByWalletId(wallet.getUserId(), pageable);
+        return transactionRepository.findAllByWalletId(wallet.getId(), pageable);
     }
 
     public String encryptJson(Object payload) {
@@ -73,8 +73,8 @@ public class WalletService {
     public void sendMessageQueue(String exchange, String routingKey, Object delivery) {
 
         try {
-            encryptJson(delivery);
-            rabbitTemplate.convertAndSend(exchange, routingKey, delivery);
+            String jsonEncrypted = encryptJson(delivery);
+            rabbitTemplate.convertAndSend(exchange, routingKey, jsonEncrypted);
         }
 
         catch (Exception e) {
