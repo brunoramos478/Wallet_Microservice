@@ -6,6 +6,10 @@ import com.fusion.bank.wallet.model.mysql.entity.TransactionEntity;
 import com.fusion.bank.wallet.model.mysql.entity.WalletEntity;
 import com.fusion.bank.wallet.model.mysql.repository.TransactionRepository;
 import com.fusion.bank.wallet.model.mysql.repository.WalletRepository;
+import com.fusion.bank.wallet.shared.exception.FailedEncrypto;
+import com.fusion.bank.wallet.shared.exception.FailedSendQueue;
+import com.fusion.bank.wallet.shared.exception.WalletExists;
+import com.fusion.bank.wallet.shared.exception.WalletNotFound;
 import lombok.AllArgsConstructor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.domain.Page;
@@ -30,7 +34,7 @@ public class WalletService {
     public void createWalletForUser(WalletEntity wallet) {
 
         if(repository.findByUserId(wallet.getUserId()).isPresent()) {
-            throw new RuntimeException("Wallet already exists");
+            throw new WalletExists();
         }
 
         wallet.setBalance(BigDecimal.ZERO);
@@ -41,13 +45,12 @@ public class WalletService {
     public BigDecimal getBalanceUser(UUID userId) {
         return repository.findByUserId(userId)
                 .map(WalletEntity::getBalance)
-                .orElseThrow(() -> new RuntimeException("Wallet not found"));
-
+                .orElseThrow(() -> new WalletNotFound());
     }
 
     public Page<TransactionEntity> getExtract(UUID userId, int page, int size) {
         WalletEntity wallet = repository.findByUserId(userId)
-                .orElseThrow(() -> new RuntimeException("Wallet not found"));
+                .orElseThrow(() -> new WalletNotFound());
 
         Pageable pageable = Pageable.ofSize(size).withPage(page);
 
@@ -63,13 +66,19 @@ public class WalletService {
             return jsonEncrypted;
         }
         catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new FailedEncrypto();
         }
     }
 
     public void sendMessageQueue(String exchange, String routingKey, Object delivery) {
-        encryptJson(delivery);
-        rabbitTemplate.convertAndSend(exchange, routingKey, delivery);
-    }
 
+        try {
+            encryptJson(delivery);
+            rabbitTemplate.convertAndSend(exchange, routingKey, delivery);
+        }
+
+        catch (Exception e) {
+            throw new FailedSendQueue();
+        }
+    }
 }
