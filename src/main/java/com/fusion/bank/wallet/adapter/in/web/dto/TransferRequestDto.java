@@ -7,11 +7,14 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 @Builder
-public record WalletDtoModel(
+public record TransferRequestDto(
         @NotNull
-        UUID id,
+        UUID userId,
         @NotNull
         @Positive
-        BigDecimal balance
+        BigDecimal value,
+        @NotNull
+        UUID recipientUserId
 ) {
+
 }
