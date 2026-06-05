@@ -49,32 +49,19 @@ public class WalletController {
     }
     @PostMapping("/transfer")
     public ResponseEntity<TransferRequestDto> newTransfer(@Valid @RequestBody TransferRequestDto requestDto) {
-        walletService.newTransfer(requestDto.userId(), requestDto.value(), requestDto.recipientUserId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(TransferRequestDto.builder()
-                .userId(requestDto.userId())
-                .value(requestDto.value())
-                .recipientUserId(requestDto.recipientUserId())
-                .build()
-
-        );
+       TransferRequestDto response = walletService.newTransfer(requestDto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
+
     @PostMapping("/deposit")
     public ResponseEntity<WalletDtoModel> newDeposit(@Valid @RequestBody WalletDtoModel requestDto) {
-        walletService.newDeposit(requestDto.id(), requestDto.balance());
-        return ResponseEntity.status(HttpStatus.CREATED).body(WalletDtoModel.builder()
-                .id(requestDto.id())
-                .balance(requestDto.balance())
-                .build()
-        );
+        WalletDtoModel response = walletService.newDeposit(requestDto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PostMapping("/withdrawal")
     public ResponseEntity<WalletDtoModel> newWithdrawal(@Valid @RequestBody WalletDtoModel requestDto) {
-        walletService.newWithdrawal(requestDto.id(), requestDto.balance());
-        return ResponseEntity.status(HttpStatus.CREATED).body(WalletDtoModel.builder()
-                .id(requestDto.id())
-                .balance(requestDto.balance())
-                .build()
-        );
+        WalletDtoModel response = walletService.newWithdrawal(requestDto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }

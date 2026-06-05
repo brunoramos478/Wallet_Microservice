@@ -1,6 +1,7 @@
 package com.fusion.bank.wallet.application.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fusion.bank.wallet.adapter.in.web.dto.TransferRequestDto;
 import com.fusion.bank.wallet.adapter.in.web.dto.WalletDtoModel;
 import com.fusion.bank.wallet.model.mysql.entity.TransactionEntity;
 import com.fusion.bank.wallet.model.mysql.entity.WalletEntity;
@@ -20,6 +21,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.encrypt.TextEncryptor;
 import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -92,95 +94,98 @@ public class WalletService {
         }
     }
 
-    public OffsetDateTime getCurrentDateTime() {
-        return OffsetDateTime.now();
+    public LocalDateTime getCurrentDateTime() {
+        return OffsetDateTime.now().toLocalDateTime();
     }
 
     @Transactional
-    public void newWithdrawal(UUID userId, BigDecimal value) {
-        WalletEntity wallet = repository.findByUserId(userId)
+    public WalletDtoModel newWithdrawal(WalletDtoModel dto) {
+        WalletEntity wallet = repository.findByUserId(dto.id())
                 .orElseThrow(WalletNotFound::new);
 
-        if (wallet.getBalance().compareTo(value) < 0) {
+        if (wallet.getBalance().compareTo(dto.balance()) < 0) {
             throw new RuntimeException("Saldo insuficiente");
         }
 
-        if (value.compareTo(BigDecimal.ZERO) <= 0) {
+        if (dto.balance().compareTo(BigDecimal.ZERO) <= 0) {
             throw new RuntimeException("Valor de saque inválido");
         }
 
-        wallet.setBalance(wallet.getBalance().subtract(value));
+        wallet.setBalance(wallet.getBalance().subtract(dto.balance()));
         repository.save(wallet);
 
-        var transaction = new TransactionEntity();
+        setTransfer(wallet.getId(), dto.balance(), dto.id(), TransactionType.Withdrawal);
 
-        transaction.setWalletId(wallet.getId());
-        transaction.setUserId(userId);
-        transaction.setValue(value);
-        transaction.setType(TransactionType.Withdrawal.name());
-
-        transactionRepository.save(transaction);
+        return WalletDtoModel.builder()
+                .id(dto.id())
+                .balance(wallet.getBalance())
+                .build();
 
     }
 
     @Transactional
-    public void newDeposit(UUID userId, BigDecimal value) {
-        WalletEntity wallet = repository.findByUserId(userId)
+    public WalletDtoModel newDeposit(WalletDtoModel dto) {
+        WalletEntity wallet = repository.findByUserId(dto.id())
                 .orElseThrow(WalletNotFound::new);
 
-        wallet.setBalance(wallet.getBalance().add(value));
+        wallet.setBalance(wallet.getBalance().add(dto.balance()));
         repository.save(wallet);
 
-        var transaction = new TransactionEntity();
+        setTransfer(wallet.getId(), dto.balance(), dto.id(), TransactionType.Deposit);
 
-        transaction.setWalletId(wallet.getId());
-        transaction.setUserId(userId);
-        transaction.setValue(value);
-        transaction.setType(TransactionType.Deposit.name());
-
-        transactionRepository.save(transaction);
+        return WalletDtoModel.builder()
+                .id(dto.id())
+                .balance(wallet.getBalance())
+                .build();
 
     }
 
+
+    // A busca é feita por meio do ID do usuário e não pelo ID da carteira.
     @Transactional
-    public void newTransfer(UUID userId, BigDecimal value, UUID recipientUserId) {
+    public TransferRequestDto newTransfer(TransferRequestDto dto) {
 
-        WalletEntity senderWallet = repository.findByUserId(userId)
+        LocalDateTime hours = getCurrentDateTime();
+
+
+        WalletEntity senderWallet = repository.findByUserId(dto.userId())
                 .orElseThrow(WalletNotFound::new);
 
-        WalletEntity recipientWallet = repository.findByUserId(recipientUserId)
+        WalletEntity recipientWallet = repository.findByUserId(dto.recipientUserId())
                 .orElseThrow(WalletNotFound::new);
 
-        if (senderWallet.getBalance().compareTo(value) < 0) {
+        if (senderWallet.getBalance().compareTo(dto.value()) < 0) {
             throw new RuntimeException("Saldo insuficiente");
         }
 
-        if (value.compareTo(BigDecimal.ZERO) <= 0) {
+        if (dto.value().compareTo(BigDecimal.ZERO) <= 0) {
             throw new RuntimeException("Valor de transferência inválido");
         }
 
-        senderWallet.setBalance(senderWallet.getBalance().subtract(value));
-        recipientWallet.setBalance(recipientWallet.getBalance().add(value));
+        senderWallet.setBalance(senderWallet.getBalance().subtract(dto.value()));
+        recipientWallet.setBalance(recipientWallet.getBalance().add(dto.value()));
 
         repository.save(senderWallet);
         repository.save(recipientWallet);
 
-        var transactionSender = new TransactionEntity();
+        setTransfer(senderWallet.getId(), dto.value(), dto.userId(), TransactionType.Transfer);
+        setTransfer(recipientWallet.getId(), dto.value(), dto.recipientUserId(), TransactionType.Receipt);
 
-        transactionSender.setWalletId(senderWallet.getId());
-        transactionSender.setUserId(userId);
-        transactionSender.setValue(value);
-        transactionSender.setType(TransactionType.Transfer.name());
+        return TransferRequestDto.builder()
+                .userId(dto.userId())
+                .value(dto.value())
+                .recipientUserId(dto.recipientUserId()).build();
+    }
 
-        transactionRepository.save(transactionSender);
+    public void setTransfer(UUID walletId, BigDecimal value, UUID userId, TransactionType type) {
+        TransactionEntity entity = new TransactionEntity();
 
-        var transactionRecipient = new TransactionEntity();
+        entity.setWalletId(walletId);
+        entity.setUserId(userId);
+        entity.setValue(value);
+        entity.setType(type.name());
 
-        transactionRecipient.setWalletId(recipientWallet.getId());
-        transactionRecipient.setUserId(recipientUserId);
-        transactionRecipient.setValue(value);
-        transactionRecipient.setType(TransactionType.Receipt.name());
+        transactionRepository.save(entity);
 
-        transactionRepository.save(transactionRecipient);
     }
 }
