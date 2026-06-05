@@ -1,5 +1,7 @@
 package com.fusion.bank.wallet.adapter.in.web.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fusion.bank.wallet.infra.config.DeserializerUUID;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.Builder;
@@ -14,12 +16,14 @@ import java.util.UUID;
 public record TransferRequestDto(
         @NotNull
         @JdbcTypeCode(Types.BINARY)
+        @JsonDeserialize(using = DeserializerUUID.class)
         UUID userId,
         @NotNull
         @Positive
         BigDecimal value,
         @NotNull
         @JdbcTypeCode(Types.BINARY)
+        @JsonDeserialize(using = DeserializerUUID.class)
         UUID recipientUserId
 ) {
 

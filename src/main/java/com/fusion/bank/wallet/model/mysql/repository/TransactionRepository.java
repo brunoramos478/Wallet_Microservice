@@ -9,5 +9,5 @@ import java.util.UUID;
 
 @Repository
 public interface TransactionRepository extends JpaRepository<TransactionEntity, UUID> {
-    Page<TransactionEntity> findAllByWalletId(UUID walletId, Pageable pageable);
+    Page<TransactionEntity> findAllByWalletIdOrderByCreatedInDesc(UUID walletId, Pageable pageable);
 }

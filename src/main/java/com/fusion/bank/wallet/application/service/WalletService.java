@@ -8,21 +8,20 @@ import com.fusion.bank.wallet.model.mysql.entity.WalletEntity;
 import com.fusion.bank.wallet.model.mysql.repository.TransactionRepository;
 import com.fusion.bank.wallet.model.mysql.repository.WalletRepository;
 import com.fusion.bank.wallet.shared.enums.TransactionType;
-import com.fusion.bank.wallet.shared.exception.FailedEncrypto;
-import com.fusion.bank.wallet.shared.exception.FailedSendQueue;
-import com.fusion.bank.wallet.shared.exception.WalletExists;
-import com.fusion.bank.wallet.shared.exception.WalletNotFound;
-import jakarta.transaction.Transactional;
+import com.fusion.bank.wallet.shared.exception.*;
 import lombok.AllArgsConstructor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.crypto.encrypt.TextEncryptor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -55,19 +54,17 @@ public class WalletService {
                 .orElseThrow(() -> new WalletNotFound());
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public Page<TransactionEntity> getExtract(UUID userId, int page, int size) {
         WalletEntity wallet = repository.findByUserId(userId)
                 .orElseThrow(WalletNotFound::new);
 
-        if(page <= 0 || size <= 0) {
-            page = 0;
-            size = 10;
-        }
+        page = Math.max(0, page);
+        size = (size <=0) ? 10 : size;
 
         Pageable pageable = PageRequest.of(page, size);
 
-        return transactionRepository.findAllByWalletId(wallet.getId(), pageable);
+        return transactionRepository.findAllByWalletIdOrderByCreatedInDesc(wallet.getId(), pageable);
     }
 
     public String encryptJson(Object payload) {
@@ -82,6 +79,7 @@ public class WalletService {
         }
     }
 
+    @Async("threadsVirtual")
     public void sendMessageQueue(String exchange, String routingKey, Object delivery) {
 
         try {
@@ -104,11 +102,11 @@ public class WalletService {
                 .orElseThrow(WalletNotFound::new);
 
         if (wallet.getBalance().compareTo(dto.balance()) < 0) {
-            throw new RuntimeException("Saldo insuficiente");
+            throw new BalanceInsufficient();
         }
 
         if (dto.balance().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new RuntimeException("Valor de saque inválido");
+            throw new WithdrawalInvalid();
         }
 
         wallet.setBalance(wallet.getBalance().subtract(dto.balance()));
@@ -145,21 +143,30 @@ public class WalletService {
     @Transactional
     public TransferRequestDto newTransfer(TransferRequestDto dto) {
 
+        if (dto.userId().equals(dto.recipientUserId())) {
+            throw new InvalidTransfer();
+        }
+
         LocalDateTime hours = getCurrentDateTime();
 
+        List<WalletEntity> walletsForTransfer = repository.findWalletsForTransfer(dto.userId(), dto.recipientUserId());
 
-        WalletEntity senderWallet = repository.findByUserId(dto.userId())
+        WalletEntity senderWallet = walletsForTransfer
+                .stream().filter(wallet -> wallet.getUserId().equals(dto.userId()))
+                .findFirst()
                 .orElseThrow(WalletNotFound::new);
 
-        WalletEntity recipientWallet = repository.findByUserId(dto.recipientUserId())
+        WalletEntity recipientWallet = walletsForTransfer
+                .stream().filter(wallet -> wallet.getUserId().equals(dto.recipientUserId()))
+                .findFirst()
                 .orElseThrow(WalletNotFound::new);
 
         if (senderWallet.getBalance().compareTo(dto.value()) < 0) {
-            throw new RuntimeException("Saldo insuficiente");
+            throw new BalanceInsufficient();
         }
 
         if (dto.value().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new RuntimeException("Valor de transferência inválido");
+            throw new InvalidTransfer();
         }
 
         senderWallet.setBalance(senderWallet.getBalance().subtract(dto.value()));
@@ -178,14 +185,14 @@ public class WalletService {
     }
 
     public void setTransfer(UUID walletId, BigDecimal value, UUID userId, TransactionType type) {
-        TransactionEntity entity = new TransactionEntity();
+        TransactionEntity transaction = new TransactionEntity();
 
-        entity.setWalletId(walletId);
-        entity.setUserId(userId);
-        entity.setValue(value);
-        entity.setType(type.name());
+        transaction.setWalletId(walletId);
+        transaction.setUserId(userId);
+        transaction.setValue(value);
+        transaction.setType(type.name());
 
-        transactionRepository.save(entity);
+        transactionRepository.save(transaction);
 
     }
 }
