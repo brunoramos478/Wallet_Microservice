@@ -5,9 +5,7 @@ import com.fusion.bank.wallet.infra.config.DeserializerUUID;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.Builder;
-import org.hibernate.annotations.JdbcType;
 import org.hibernate.annotations.JdbcTypeCode;
-
 import java.math.BigDecimal;
 import java.sql.Types;
 import java.util.UUID;

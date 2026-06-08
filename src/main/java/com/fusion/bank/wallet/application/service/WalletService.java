@@ -19,8 +19,8 @@ import org.springframework.security.crypto.encrypt.TextEncryptor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -47,7 +47,7 @@ public class WalletService {
 
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public BigDecimal getBalanceUser(UUID userId) {
         return repository.findByUserId(userId)
                 .map(WalletEntity::getBalance)
@@ -92,8 +92,8 @@ public class WalletService {
         }
     }
 
-    public LocalDateTime getCurrentDateTime() {
-        return OffsetDateTime.now().toLocalDateTime();
+    public OffsetDateTime getCurrentDateTime() {
+        return OffsetDateTime.now(ZoneOffset.UTC);
     }
 
     @Transactional
@@ -146,8 +146,6 @@ public class WalletService {
         if (dto.userId().equals(dto.recipientUserId())) {
             throw new InvalidTransfer();
         }
-
-        LocalDateTime hours = getCurrentDateTime();
 
         List<WalletEntity> walletsForTransfer = repository.findWalletsForTransfer(dto.userId(), dto.recipientUserId());
 
